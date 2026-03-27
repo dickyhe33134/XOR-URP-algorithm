@@ -1,0 +1,5 @@
+variable length: 3
+cube length: 3
+1 1 2
+1 1 2
+1 2 1

@@ -1,6 +1,6 @@
 from pathlib import Path
 import sys
-from copy import deepcopy
+from functools import lru_cache
 
 if len(sys.argv) != 3:
     print("Usage: python xor.py <input_file.txt> <output_file.txt>")
@@ -11,8 +11,8 @@ input_file = sys.argv[1]   # First argument after xor.py
 output_file = sys.argv[2]  # Second argument
 
 
-inBase_folder='testcase'
-outBase_folder='testcaseoutput'
+inBase_folder='testcase'  #folder for input testcase
+outBase_folder='testcaseoutput'  #opp folder
 def read_text_file(filename):
     file_path = Path(inBase_folder) / filename
     try:
@@ -24,7 +24,7 @@ def read_text_file(filename):
         return None
 
 
-text = read_text_file(input_file)
+text = read_text_file(input_file) #read
 
 if text is None or len(text) < 4:
     print(f"Failed to read or parse {input_file}")
@@ -56,51 +56,47 @@ except Exception as e:
     sys.exit(1)
 ## G and F cubelists are formed
 
-def cofactor(M,var,polarity):
+#use irucache to memorize same takein to speedup
+@lru_cache(maxsize=None)
+def cofactor(M_tuple,var,polarity):
+    M = [list(cube) for cube in M_tuple]
     length=len(M)
-    P=deepcopy(M)
     for i in range(length):
         if M[i] != [] :
             if M[i][var]==polarity:
-                P[i][var]=2
+                M[i][var]=2
             elif M[i][var]==(1-polarity):
-                P[i]=[]
+                M[i]=[]
         else :
             continue
-    return P
+    return tuple(tuple(cube) for cube in M)
 ## finish defying cofactor
 
-def intersact(M,P):
-    ##print(f"Here is the left part:\n'{M}'\n")
-    ##print(f"Here is the right part:\n'{P}'\n")
-    out=[]
+def intersact(M, P):
     if not M or not P:
-        return []
-    for k in range(len(P)):    
-        for j in range(len(M)):
-            line=[]
+        return []        
+    out = []
+    for p_cube in P:
+        for m_cube in M:
+            line = [2] * length ##faster preload
+            conflict = False            
             for i in range(length):
-                if M[j][i]==P[k][i]:
-                    line.append(M[j][i])
-                elif M[j][i] ==2:
-                    line.append(P[k][i])
-                elif P[k][i] ==2:
-                    line.append(M[j][i])
+                m = m_cube[i]
+                p = p_cube[i]
+                if m == 2:
+                    line[i] = p
+                elif p == 2 or m == p:
+                    line[i] = m
                 else:
-                    line.append(3)
-            if 3 in line:
-                continue
-            else:
-                out.append(line)
-    print(f"Here is the out:'{out}'")
+                    conflict = True
+                    break                    
+            if not conflict:
+                out.append(line)                
     return out
 
-def union(M,P):
-    result=deepcopy(P)
-    for cube in M:
-        if cube not in result:
-            result.append(cube)
-    return result
+def union(M, P):
+    merged = set(tuple(cube) for cube in M) | set(tuple(cube) for cube in P)
+    return [list(cube) for cube in merged]
 
 def duplicate(K):
     for x in K:
@@ -111,50 +107,16 @@ def duplicate(K):
         else:
             duplicate.append(x)
     return [seen,duplicate]     
-def simplified(M):
-    not_dul=duplicate(M)[0]
-    var_length=len(not_dul[0])
-    cube_length=len(not_dul)
-    for j in range(var_length):
-        marker0=[]
-        marker1=[]
-        marker2=[]
-        for i in range(cube_length):
-            match M[i][j]:
-                case 1:
-                    marker1.append([i,j])
-                case 2:
-                    marker2.append([i,j])
-                case 0:
-                    marker0.append([i,j])
-    if len(marker1)>1:
-        counter=0
-        for cube in marker1:
-            if counter==0:
-                not_dul[cube[0]]=[1]*var_length
-                for element in range(var_length):
-                    if element!=cube[1]:
-                        not_dul[cube[0]][element]=2
-            else:
-                del not_dul[cube[0]]
-            counter=counter+1
-    
 
-def split_var_cube(var,polarity):
-    split_var_cube=[]
-    for j in range(length):
-        if j==var and polarity==1:
-            split_var_cube.append(1)
-        elif j==var and polarity==0:
-            split_var_cube.append(0)
-        else:
-            split_var_cube.append(2)
-    return split_var_cube
+def split_var_cube(var, polarity):
+    cube = [2] * length
+    cube[var] = polarity
+    return cube
 
-
-def complement(M,depth=0):
-    print(f"Depth {depth}: Entering complement with M = {M}")
-    mini=[10000,0,0]
+@lru_cache(maxsize=None)
+def complement(M_tuple,depth=0):
+    M=[list(cube) for cube in M_tuple]
+    ##print(f"Depth {depth}: Entering complement with M = {M}")
     if [[]]*len(M) == M:                                   
         return [length * [2]]
     
@@ -163,56 +125,71 @@ def complement(M,depth=0):
     if universal in M:
         return []
 
-    for j in range(length):
-        counter0=0
-        counter1=0
-        for i in range(len(M)):
-            if M[i]!=[]:
-                match M[i][j]:
-                    case 1:
-                        counter1=counter1+1
-                    case 0:
-                        counter0=counter0+1
-        if counter1 or counter0:
-            print("counters of this column is:",counter1,counter0)
-            print("column is:",j)
-            if mini[0]>abs(counter1-counter0) or mini[2]<(counter1+counter0):
-                mini[0]=abs(counter1-counter0)
-                mini[2]=counter1+counter0
-                mini[1]=j
-                ## print(mini[1])
-            else:
-                continue
-    print(mini[1])        
-    cof_1=cofactor(M,mini[1],1)
-    cof_0=cofactor(M,mini[1],0)
+#   Find the best split var
+    c0_counts = [0] * length
+    c1_counts = [0] * length
+
+    for c in M:
+        if not c:
+            continue
+        for v in range(length):
+            if c[v] == 0:
+                c0_counts[v] += 1
+            elif c[v] == 1:
+                c1_counts[v] += 1
+
+    best_var = 0
+    best_score = -1
+    best_score_balance = float('inf') 
+    
+    for v in range(length):
+        score1 = c0_counts[v] + c1_counts[v]
+        score2 = abs(c0_counts[v] - c1_counts[v])
+        
+        if score1 > best_score:
+            best_score = score1
+            best_score_balance = score2
+            best_var = v
+        elif score1 == best_score:
+            if score2 < best_score_balance:
+                best_score_balance = score2
+                best_var = v 
+
+#   find cof
+    cof_1=cofactor(tuple(tuple(c) for c in M),best_var,1)
+    cof_0=cofactor(tuple(tuple(c) for c in M),best_var,0)
+
+#   input compl    
     if len(cof_1)>=1:
         cof_1=complement(cof_1,depth+1)
     if len(cof_0)>=1:
-        cof_0=complement(cof_0,depth+1)   
-    left=deepcopy(cof_1)
+        cof_0=complement(cof_0,depth+1)
+
+#   left right   
+    left=cof_1
     if left==[length*[2]]:
-        left=[split_var_cube(mini[1],1)]
+        left=[split_var_cube(best_var,1)]
     elif left==[]:
         left=[]
     else:
-        left=intersact(left,[split_var_cube(mini[1],1)])
-    right=deepcopy(cof_0)
+        left=intersact(left,[split_var_cube(best_var,1)])
+
+    right=cof_0
     if right==[length*[2]]:
-        right=[split_var_cube(mini[1],0)]
+        right=[split_var_cube(best_var,0)]
     elif right==[]:
         right=[]
     else:
-        right=intersact(right,[split_var_cube(mini[1],0)])
-    print("DEBUG - left  before intersact:", left)
-    print("DEBUG - right before intersact:", right)
+        right=intersact(right,[split_var_cube(best_var,0)])
+    ##print("DEBUG - left  before intersact:", left)
+    ##print("DEBUG - right before intersact:", right)
     result= union(left,right)
-    print("union result is:",result)
+    ##print("union result is:",result)
     return result
 
 # Compute complements
-F_comp = complement(F)
-G_comp = complement(G)
+F_comp = complement(tuple(tuple(c) for c in F))
+G_comp = complement(tuple(tuple(c) for c in G))
 
 # F XOR G = (F · ~G) + (~F · G)
 term1 = intersact(F, G_comp)
@@ -222,7 +199,7 @@ xor_result = union(term1, term2)
 # Output
 def output_files(file):
     file_path=Path(outBase_folder)/file
-    print("Final XOR result:", xor_result)
+    ##print("Final XOR result:", xor_result)
     with open(file_path, 'w', encoding='utf-8') as f:
         if xor_result!=[]:
             f.write('variable length: '+str(len(xor_result[0]))+'\n')

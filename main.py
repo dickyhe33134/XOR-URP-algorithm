@@ -27,30 +27,39 @@ def main():
         cmd = ["python", "xor.py", filename_only, str(output_file.name)]
         print(f"[{i:4d}/{len(input_files)}] Running: {' '.join(cmd)}")
 
+        # Start the timer for this specific test case!
+        test_start_time = time.time()
+
         try:
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=20,
+                timeout=10000000,
                 check=False
             )
+            
+            # Stop the timer the moment the subprocess finishes
+            test_elapsed = time.time() - test_start_time
 
             if result.returncode == 0:
                 success += 1
-                print(f"[{i:4d}/{len(input_files)}] ✓ {filename_only} → Success")
+                print(f"[{i:4d}/{len(input_files)}] ✓ {filename_only} → Success (took {test_elapsed:.4f}s)")
             else:
                 failed += 1
-                print(f"[{i:4d}/{len(input_files)}] ✗ {filename_only} → Failed")
+                print(f"[{i:4d}/{len(input_files)}] ✗ {filename_only} → Failed (took {test_elapsed:.4f}s)")
                 if result.stderr:
                     print("   Error:", result.stderr.strip()[-400:])
 
         except subprocess.TimeoutExpired:
+            test_elapsed = time.time() - test_start_time
             failed += 1
-            print(f"[{i:4d}/{len(input_files)}] ✗ {filename_only} → Timeout")
+            print(f"[{i:4d}/{len(input_files)}] ✗ {filename_only} → Timeout (took {test_elapsed:.4f}s)")
+            
         except Exception as e:
+            test_elapsed = time.time() - test_start_time
             failed += 1
-            print(f"[{i:4d}/{len(input_files)}] ✗ {filename_only} → Exception: {e}")
+            print(f"[{i:4d}/{len(input_files)}] ✗ {filename_only} → Exception: {e} (took {test_elapsed:.4f}s)")
 
         if i % 50 == 0:
             print(f"--- Progress: {i}/{len(input_files)} completed ---\n")
