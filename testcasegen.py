@@ -2,7 +2,7 @@ import random
 import os
 from pathlib import Path
 
-def generate_testcase(var_count=5, max_cubes=5):
+def generate_testcase(var_count, max_cubes):
     """Generate one testcase in the required format"""
     lines = []
     
@@ -29,7 +29,7 @@ def generate_testcase(var_count=5, max_cubes=5):
 
 
 def main():
-    num_testcases = 1000
+    num_testcases = 10
     output_dir = Path("testcase")
     output_dir.mkdir(exist_ok=True)
     
@@ -37,9 +37,9 @@ def main():
     
     for i in range(num_testcases):
         # Randomly vary number of variables between 3 and 8
-        var_count = random.randint(3, 8)
+        var_count = random.randint(2, 20)
         
-        testcase = generate_testcase(var_count=var_count, max_cubes=6)
+        testcase = generate_testcase(var_count=var_count,max_cubes=1000)
         
         filename = output_dir / f"testcase{i+1}in.txt"
         

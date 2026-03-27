@@ -155,9 +155,6 @@ def split_var_cube(var,polarity):
 def complement(M,depth=0):
     print(f"Depth {depth}: Entering complement with M = {M}")
     mini=[10000,0,0]
-    if depth > 3:                    # ← Limit to 10 recursive calls
-        print("Recursion depth limit reached!")
-        return []                     # or raise an error
     if [[]]*len(M) == M:                                   
         return [length * [2]]
     
